@@ -35,6 +35,12 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 
+# pnpm monorepo 各包的编译产物（packages/shared/tsc 输出）
+# 必须显式覆盖 packages/*/dist，否则 tsc 产物会被误提交
+packages/*/dist/
+**/dist/
+!**/node_modules/**/dist/
+
 # ==========================================
 # 环境变量与密钥
 # ==========================================

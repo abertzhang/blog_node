@@ -10,7 +10,7 @@
     // 构建：先构建依赖（^build），产物输出到各包约定目录
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["web/.next/**", "backend/dist/**"]
+      "outputs": ["web/.next/**", "backend/dist/**", "packages/shared/dist/**"]
     },
     // 代码检查：依赖包先 lint
     "lint": {

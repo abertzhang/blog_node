@@ -1,15 +1,16 @@
 {
   "$schema": "https://openship.io/openship.schema.json",
   "framework": "nextjs",
-  "packageManager": "npm",
+  "packageManager": "pnpm",
   "rootDirectory": "web",
-  "buildCommand": "npm run build",
-  "startCommand": "npm run start",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm run build",
+  "startCommand": "pnpm run start",
   "productionMode": "standalone",
   "port": 3000,
   "runtime": "docker",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://api.blog.opsh.io"
+    "NEXT_PUBLIC_API_URL": "https://REPLACE_WITH_YOUR_API_DOMAIN"
   },
   "routes": {
     "cleanUrls": true

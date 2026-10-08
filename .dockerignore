@@ -1,0 +1,74 @@
+# ==========================================
+# Docker 构建上下文排除清单
+# ==========================================
+# 作用：Openship 以 runtime=docker 部署时（见 web/openship.json、backend/openship.json），
+# Docker 会把整个仓库作为构建上下文发送。node_modules体积巨大且与宿主平台绑定，
+# 必须排除，否则构建极慢且可能因平台差异（darwin arm64 vs linux x64）产生错误产物。
+#
+# 注意：不要排除 pnpm-lock.yaml / package.json / package-lock.json，
+# 这些是构建必需的依赖锁定文件。
+
+# ---------- 依赖 ----------
+node_modules
+**/node_modules
+.pnpm-store
+
+# ---------- 构建产物 ----------
+.next
+**/.next
+out
+**/out
+dist
+**/dist
+build
+**/build
+.turbo
+**/.turbo
+
+# ---------- 版本控制 ----------
+.git
+.gitignore
+.github
+
+# ---------- 本地状态 ----------
+.openship
+.workbuddy
+.idea
+.vscode
+.npm-cache
+
+# ---------- 环境变量与密钥 ----------
+# Docker 构建不应该拿到任何 .env，敏感配置走 openship.json 的 env 字段注入
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ---------- 日志与临时文件 ----------
+*.log
+npm-debug.log*
+**/*.tsbuildinfo
+next-env.d.ts
+**/next-env.d.ts
+
+# ---------- 数据库与运行时数据 ----------
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.pid
+
+# ---------- 操作系统 ----------
+.DS_Store
+._*
+Thumbs.db
+
+# ---------- 文档（不参与构建） ----------
+# 注意：md/ 目录存放博客 markdown 内容，如果未来要用它生成静态文章，
+# 需要把这一段移除或改为只排除特定子目录。当前部署不依赖它。
+# md/
+README.md
+doc/

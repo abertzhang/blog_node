@@ -1,0 +1,6 @@
+# pnpm 工作区定义：blog_node 根目录下的所有子包
+# web = Next.js 16 前端，backend = Express 后端，packages/* = 内部共享库
+packages:
+  - 'web'
+  - 'backend'
+  - 'packages/*'

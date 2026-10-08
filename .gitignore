@@ -1,55 +1,131 @@
-# 依赖
+# ==========================================
+# 依赖 /包管理器
+# ==========================================
+# pnpm 用符号链接，node_modules 必须全局忽略（不要用 !/web/node_modules 反向包含）
 node_modules/
+.pnpm-store/
 .pnp
 .pnp.*
+
+# yarn berry 保留目录（pnpm 项目下一般用不到，留作兼容）
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
 
-# 测试
-/coverage
-
-# next.js
-/.next/
-/out/
+# ==========================================
+# 构建产物
+# ==========================================
+# Next.js（根与子目录都要覆盖）
+.next/
+out/
 /web/.next/
 /web/out/
+/backend/dist/
+/backend/build/
 
-# 生产
+# Turborepo 缓存与任务日志
+.turbo/
+.turbo-cache/
+
+# 通用产物目录
 /build
+/dist
+*.tsbuildinfo
+next-env.d.ts
 
-# 杂项
-.DS_Store
+# ==========================================
+# 环境变量与密钥
+# ==========================================
+# 所有 .env 变体默认忽略，仅放行示例文件
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# 证书与私钥
 *.pem
+*.key
+*.p12
+*.pfx
 
-# 调试日志
+# ==========================================
+# Openship
+# ==========================================
+# .openship/project.json 记录本地项目链接，与他人无关，不进仓库
+.openship/
+
+# npm 在项目内生成的临时缓存
+.npm-cache/
+
+# ==========================================
+# 日志与运行时
+# ==========================================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+*.log
 
-# 环境变量文件
-.env*
-!.env.example
+# 进程文件（以 dotfile 开头的 next dev / turbo 守护进程 pid）
+*.pid
+*.pid.lock
 
-# openship本地状态（仅记录项目链接，不应进仓库）
-.openship/
+# ==========================================
+# 数据库与上传文件
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
 
+# ==========================================
+# 测试
+# ==========================================
+coverage/
+.nyc_output/
+
+# ==========================================
 # 编辑器 / IDE
+# ==========================================
+# JetBrains（.idea/ + *.iml）
 .idea/
-.vscode/
+*.iml
+*.iws
+*.ipr
 
-# openship npm 缓存
-.npm-cache/
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 
-# WorkBuddy 本地工作记忆（不进仓库）
+# ==========================================
+# 操作系统
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ==========================================
+# WorkBuddy 本地状态
+# ==========================================
+# .workbuddy/ 存放本地记忆与会话数据，属于个人工作区，不应进代码仓库
 .workbuddy/
 
-# 误生成的根级lock 文件
-/package-lock.json
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
+# ==========================================
+# 备份与临时文件
+# ==========================================
+*.bak
+*.swp
+*~
+\#*\#
+.\#*
+/tmp/
+/temp/

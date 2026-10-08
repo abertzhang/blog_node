@@ -1,0 +1,26 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    // 开发模式：并行启动所有 workspace 的 dev，常驻不缓存
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    // 构建：先构建依赖（^build），产物输出到各包约定目录
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["web/.next/**", "backend/dist/**"]
+    },
+    // 代码检查：依赖包先 lint
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    // 启动：依赖 build 完成，常驻
+    "start": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

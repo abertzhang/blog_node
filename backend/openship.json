@@ -1,10 +1,10 @@
 {
   "$schema": "https://openship.io/openship.schema.json",
   "framework": "express",
-  "packageManager": "npm",
+  "packageManager": "pnpm",
   "rootDirectory": "backend",
-  "installCommand": "npm ci --omit=dev",
-  "startCommand": "npm start",
+  "installCommand": "pnpm install --frozen-lockfile --prod",
+  "startCommand": "pnpm run start",
   "port": 3000,
   "runtime": "docker",
   "env": {

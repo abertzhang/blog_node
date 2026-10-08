@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openship.io/openship.schema.json",
+  "framework": "express",
+  "packageManager": "npm",
+  "rootDirectory": "backend",
+  "installCommand": "npm ci --omit=dev",
+  "startCommand": "npm start",
+  "port": 3000,
+  "runtime": "docker",
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

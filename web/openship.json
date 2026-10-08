@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openship.io/openship.schema.json",
+  "framework": "nextjs",
+  "packageManager": "npm",
+  "rootDirectory": "web",
+  "buildCommand": "npm run build",
+  "startCommand": "npm run start",
+  "productionMode": "standalone",
+  "port": 3000,
+  "runtime": "docker",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://api.blog.opsh.io"
+  },
+  "routes": {
+    "cleanUrls": true
+  }
+}

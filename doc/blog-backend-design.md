@@ -194,25 +194,30 @@ CREATE TABLE post_tags (
 CREATE INDEX idx_post_tags_tag ON post_tags(tag_id);
 
 -- ============ 文章 ============
+-- ⚠️ 列名与 frontmatter 字段的映射见下方注释，两者刻意不完全同名
 CREATE TABLE posts (
   id            SERIAL PRIMARY KEY,
-  slug          VARCHAR(160) NOT NULL UNIQUE,   -- URL 标识，如 "nextjs-16-guide"
+  slug          VARCHAR(160) NOT NULL UNIQUE,   -- URL 标识，由 title 自动 slugify
 
   -- frontmatter 冗余字段（用于列表/筛选，避免回源 R2）
-  title         VARCHAR(255) NOT NULL,
-  summary       VARCHAR(500),                   -- 摘要，列表页展示
+  title         VARCHAR(255) NOT NULL,-- fm.title
+  summary       VARCHAR(500),                   -- fm.summary（可空）
   category_id   INTEGER      REFERENCES categories(id) ON DELETE SET NULL,
+                                       -- fm.category（存 slug，此处存解析后的外键）
 
   -- 文档形态区分（用户明确要求长文+短文混合）
   content_type  VARCHAR(16)  NOT NULL DEFAULT 'post'
                 CHECK (content_type IN ('post','doc','note')),
-                                     -- post=常规博客  doc=长文档(>50KB)  note=片段
+                                     -- fm.contentType：post=常规博客 doc=长文档 note=片段
 
+  -- fm.draft 用布尔表达，草稿不进入status 的published 态
   status        VARCHAR(16)  NOT NULL DEFAULT 'draft'
                 CHECK (status IN ('draft','published','archived')),
-  is_top        BOOLEAN      NOT NULL DEFAULT false,  -- 置顶
+  draft         BOOLEAN      NOT NULL DEFAULT true,   -- fm.draft
+  is_top        BOOLEAN      NOT NULL DEFAULT false,  -- fm.top（fm 里是 1/0，此处转布尔）
+  copyright     BOOLEAN      NOT NULL DEFAULT true,-- fm.copyright
 
-  -- 封面
+  -- 封面（当前 frontmatter 未含 cover 字段，保留列以便后续扩展）
   cover_key     VARCHAR(512),                   -- R2 对象 key，如 covers/2026/10/xxx.webp
   cover_url     TEXT,                           -- 冗余完整 URL（CDN 域名拼好）
 
@@ -232,9 +237,10 @@ CREATE TABLE posts (
   view_count    INTEGER      NOT NULL DEFAULT 0,
   word_count    INTEGER      NOT NULL DEFAULT 0,
 
-  published_at  TIMESTAMPTZ,                    -- 首次发布时间
-  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  -- fm.create / fm.update 为纯日期 YYYY-MM-DD，落库前补成零点整点
+  published_at  TIMESTAMPTZ,                    -- 首次上线时间（发布时写入）
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),  -- 库内部时间，非 fm.create
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),  -- 库内部时间，非 fm.update
 
   CONSTRAINT posts_published_at_check
     CHECK (status <> 'published' OR published_at IS NOT NULL)
@@ -355,27 +361,50 @@ PG 的 `tsvector` 中文分词需要预处理，去掉 markdown 语法后的纯�
 
 ### 6.1 frontmatter schema
 
+**以 `md/template.md` 为唯一权威约定**（用户 2026-10-08 确定）。完整字段：
+
 ```yaml
 ---
 title: Next.js 16 学习文档
-slug: nextjs-16-guide
-category: nextjs# 对应 categories.slug
-tags: [nextjs, react, typescript]
+create: 2026-10-04                # 纯日期 YYYY-MM-DD
+update: 2026-10-07                # 纯日期 YYYY-MM-DD
+category: node                # 对应 categories.slug
+tags: []                            # 数组，可空
 summary: 基于官方中文文档整理的 Next.js 16 完整学习资料
-cover: covers/2026/10/nextjs-16.webp
-date: 2026-10-08T12:00:00Z
-updated: 2026-10-08T12:00:00Z
-contentType: doc                     # post | doc | note
-draft: false
-top: false
-series: Next.js 16 专题               # 可选：系列归属
-seriesOrder: 1# 可选：系列内顺序
-canonicalUrl: https://nextjs.org/docs# 可选：转载来源
+top: 1                             # 1=置顶，0 或空=不置顶
+copyright: true                    # 是否保留版权声明
+draft: false                       # true=草稿，不对外展示
+contentType: doc                   # post | doc | note
 ---
 ```
 
+**字段类型约定（后端 Zod 校验依据）**：
+
+| 字段 | YAML 类型 | 空值写法 | Prisma 类型 | 说明 |
+|---|---|---|---|---|
+| `title` | string | 留空 | `String` | 后端必填校验 |
+| `create` | string | 留空 | `DateTime?` | 纯日期 `YYYY-MM-DD`，后端转 `Date` |
+| `update` | string | 留空 | `DateTime?` | 同上 |
+| `category` | string | 留空 | 外键 | slug，查 `categories.slug` |
+| `tags` | array | `[]` | 关联表 | 空数组合法 |
+| `summary` | null | 留空 | `String?` | 空值→`null` |
+| `top` | **number** | 留空 | `Boolean` | ⚠️ 见下方说明 |
+| `copyright` | boolean | `true`/`false` | `Boolean` | |
+| `draft` | boolean | `true`/`false` | `Boolean` | |
+| `contentType` | string | 留空 | `String` | `post`/`doc`/`note` |
+
+⚠️ **`top` 用数字而非布尔**（用户约定 `top: 1`）：
+YAML 会把 `1` 解析成 number，而后端/数据库用布尔。转换规则：
+- 解析时：`true` = `1` 或 `'1'` 或 `true`
+- 序列化时：`true` → `1`，`false` → `0`（不是 `false`，保持与用户书写习惯一致）
+
+⚠️ **纯日期 vs ISO 时间戳**：
+`create`/`update` 用 `YYYY-MM-DD` 纯日期（用户约定），不是完整 ISO。
+Prisma 侧为 `DateTime?`，写入前由后端补成 `YYYY-MM-DDT00:00:00Z`，
+避免 `new Date('2026-10-04')` 在部分运行时被当本地时区解析。
+
 > `category` 用 **slug 字符串**而非数字 ID —— 让人手写 frontmatter 时可读、可迁移，
-> 后端写入时负责把 slug 解析成 `posts.category_id`。
+> 后端写入时负责把 slug 解析成 `posts.category_id`，slug 不存在时自动创建分类。
 
 ### 6.2 编辑保存流程
 

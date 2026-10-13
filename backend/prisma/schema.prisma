@@ -1,0 +1,79 @@
+// 博客数据库模型定义（Prisma 7 + PostgreSQL）
+//
+// 重要（Prisma 7 变更）：
+//   - datasource 的 url 不再写在本文件，改由 prisma.config.ts 的 env("DATABASE_URL") 提供
+//   - generator 用 "prisma-client"（非旧版 prisma-client-js），且 output 必填
+//   - 生成的 client 从 backend/src/generated/prisma/client.js 导入，而非 @prisma/client
+//
+// 设计要点：
+//   - frontmatter 的嵌套字段用 JSONB 更灵活，但本简历项目为直观演示「关系型建模」，
+//     把核心字段拆成独立列（title/summary/categoryId/tags/contentType/draft/top/copyright），
+//     create/update 映射为 createdAt/updatedAt。
+//   - md 正文直接存 PostgreSQL（text 列），不再依赖外部对象存储 —— 本地 docker 卷已持久化数据库，
+//     把内容放进 DB 能最直接地体现「数据库 CRUD」能力。
+//   - tags 用 PostgreSQL 原生字符串数组（String[]），避免额外的关联表，简化模型。
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma" // 生成到项目内（不进 node_modules），便于 Docker 多阶段构建
+}
+
+datasource db {
+  provider = "postgresql"
+  // url 由 prisma.config.ts 注入，这里不写死
+}
+
+/// 后台用户：用于 JWT 登录与文章作者归属
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique // 登录账号，唯一
+  name         String? // 显示名
+  passwordHash String // bcrypt 哈希，绝不存储明文密码
+  role         String   @default("author") // author | admin
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  posts        Post[]
+}
+
+/// 文章分类：slug 对应 frontmatter 里的 category 字段（如 node / flutter / golang）
+model Category {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique // 如 "node"，手写 frontmatter 时可读
+  name      String // 显示名，如 "Node.js"
+  postCount Int      @default(0) // 冗余计数；读时通过 groupBy 维护，避免触发器
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+/// 文章：元数据 + md 正文都在库内
+model Post {
+  id          Int       @id @default(autoincrement())
+  slug        String    @unique // URL 标识，如 "nextjs-16-guide"
+  title       String // 对应 frontmatter.title
+  summary     String? // 对应 frontmatter.summary（列表页展示）
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId  Int?
+  tags        String[] // 对应 frontmatter.tags（PG 原生数组）
+  content     String // md 正文（不含 frontmatter，由后端负责拼接/拆解）
+  contentType String    @default("post") // post | doc | note（区分长短文）
+  draft       Boolean   @default(false) // 对应 frontmatter.draft
+  top         Boolean   @default(false) // 对应 frontmatter.top（1 → true）
+  copyright   Boolean   @default(true) // 对应 frontmatter.copyright
+  createdAt   DateTime  @default(now()) // 对应 frontmatter.create
+  updatedAt   DateTime  @updatedAt // 对应 frontmatter.update
+  publishedAt DateTime? // 首次发布时间；草稿期为 null
+  author      User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId    Int?
+  viewCount   Int       @default(0)
+  revisions   PostRevision[]
+}
+
+/// 文章历史版本：md 不在 git 中，误改可依此回滚
+model PostRevision {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+}

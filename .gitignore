@@ -2,7 +2,8 @@
 # 依赖 /包管理器
 # ==========================================
 # pnpm 用符号链接，node_modules 必须全局忽略（不要用 !/web/node_modules 反向包含）
-node_modules/
+# 注意：去掉尾斜杠，让「符号链接形式的 node_modules」(如 mobile/node_modules -> 根 node_modules) 也能被忽略
+node_modules
 .pnpm-store/
 .pnp
 .pnp.*
@@ -85,6 +86,10 @@ pnpm-debug.log*
 *.sqlite3
 *.db
 *.db-journal
+
+# 本地 PostgreSQL 数据卷（backend/docker-compose.local.yml 的 ./data/postgres）
+# Openship Cloud 无持久卷，此目录仅本地开发用，绝不可进仓库
+**/data/
 
 # ==========================================
 # 测试

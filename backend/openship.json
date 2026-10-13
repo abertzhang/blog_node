@@ -8,6 +8,7 @@
   "port": 3000,
   "runtime": "docker",
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "DATABASE_URL": "postgresql://REPLACE_WITH_MANAGED_PG_URL"
   }
 }

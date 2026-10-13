@@ -1,0 +1,35 @@
+# 本地开发用的 PostgreSQL（仅本机 docker，不经过 Openship）
+#
+# 重要：此文件 **不会被 Openship 读取**（Openship 默认只认项目根或 composePath
+# 指定的 docker-compose.yml）。它的用途是让你在本地 `docker compose` 起一个 PG，
+# 配合 `pnpm dev` 跑 backend，连 postgres://root:Zhang1234!@localhost:5432/blog。
+#
+# 部署到 Openship 时，数据库走「托管 PostgreSQL 服务」（catalog 添加或
+# `openship db create postgres`），backend 通过内网 DATABASE_URL 连接，
+# 数据生命周期独立于应用容器，不受 Cloud 无持久卷影响。详见 doc/blog-backend-design.md。
+
+services:
+  # PostgreSQL 服务（本地开发）
+  postgres:
+    image: postgres:16
+    # 首次启动（数据目录为空时）按这些值建超级用户与默认库
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=Zhang1234!
+      - POSTGRES_DB=blog
+    ports:
+      - "5432:5432"
+    # 绑定挂载：宿主机 ./data/postgres 映射到容器内 PostgreSQL 数据目录
+    # 仅本地生效；Openship Cloud 会忽略 bind mount（无持久卷）
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    # 健康检查：pg_isready 探测连接可用性；启动阶段会先 reject 连接（退出码 1），
+    # 直到真正 ready 才返回 0，配合 retries 实现「等它真正起来」
+    # 注意：-d 必须填 POSTGRES_DB 的值（blog），原稿写的 myapp 会导致健康检查永远失败
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d blog"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped

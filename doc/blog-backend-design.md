@@ -1,6 +1,6 @@
 # 博客后端设计：md 在线编辑 + 分类 + 前端技术栈
 
-> 结论先行：**PostgreSQL 存元数据（Prisma ORM）+ Cloudflare R2 存 md 正文**。
+> 结论先行：**PostgreSQL 存元数据（Prisma ORM）+ Cloudflare R2 存 md 正文**。  
 > 原计划的「磁盘存正文」在 Openship Cloud 上不可行，原因见第1 节。
 
 ---
@@ -9,8 +9,8 @@
 
 用户 2026-10-08 明确指定使用 **Prisma** 作为 ORM。
 
-⚠️ **本节 DDL 是「逻辑模型」而非可直接执行的最终迁移**。Prisma Migrate 不管理触发器、
-函数、表达式索引，第 5.2 节末尾的 PL/pgSQL 触发器与 `tsvector` 索引必须以手写 SQL
+⚠️ **本节 DDL 是「逻辑模型」而非可直接执行的最终迁移**。Prisma Migrate 不管理触发器、  
+函数、表达式索引，第 5.2 节末尾的 PL/pgSQL 触发器与 `tsvector` 索引必须以手写 SQL  
 补充进迁移文件。落地时的两种路径见文末「第 10 节」。
 
 ### Prisma 7.x 配置要点（与网上 5.x/6.x 教程完全不同）
@@ -45,6 +45,7 @@ import { PrismaClient } from "../generated/prisma/client.js";
 ```
 
 要点：
+
 - Prisma CLI **不自动加载 `.env`**，需 `import "dotenv/config"`
 - 版本锚点：`@prisma/client@7.10.0`（最新稳定）。`prisma` 有 8.0.0-rc，**RC 不用于生产**
 - `prisma` 与 `@prisma/client` 版本需对齐
@@ -56,23 +57,23 @@ import { PrismaClient } from "../generated/prisma/client.js";
 
 ## 1. 为什么不能把 md 放磁盘（重要约束）
 
-你最初选择「数据库存元数据 + 磁盘存正文」，但部署目标是 **Openship Cloud**，
+你最初选择「数据库存元数据 + 磁盘存正文」，但部署目标是 **Openship Cloud**，  
 而官方文档明确写着：
 
-> **Openship Cloud has no volumes.** A declared path is reported and skipped there;
-> use object storage.
+> **Openship Cloud has no volumes.** A declared path is reported and skipped there;  
+> use object storage.  
 > —— openship.io/docs/guides/persistent-storage
 
-每次部署都会用全新容器替换旧容器，昨天写入磁盘的文件今天就没了。
+每次部署都会用全新容器替换旧容器，昨天写入磁盘的文件今天就没了。  
 所以在 Cloud 上，正文只有三个可行去处：
 
-| 方案 | 可行性 |
-|---|---|
-| 容器本地磁盘 | ❌ 每次部署丢失 |
+| 方案                    | 可行性                     |
+| --------------------- | ----------------------- |
+| 容器本地磁盘                | ❌ 每次部署丢失                |
 | Openship volumes（持久卷） | ❌ Cloud 不支持（自托管 VPS 才行） |
-| **S3 兼容对象存储** | ✅ Cloud 原生支持，官方推荐 |
+| **S3 兼容对象存储**         | ✅ Cloud 原生支持，官方推荐       |
 
-**Cloudflare R2 就是 S3 兼容的**，官方文档明确列为可选 provider，且**零出网流量费**——
+**Cloudflare R2 就是 S3 兼容的**，官方文档明确列为可选 provider，且**零出网流量费**——  
 对博客这种「文件只读、流量大」的场景是最优选。免费额度 10GB-月存储 + 100万次 Class A + 1000万次 Class B 操作。
 
 ---
@@ -99,20 +100,20 @@ import { PrismaClient } from "../generated/prisma/client.js";
 └──────────────────┘        └───────────────────────────────┘
 ```
 
-**关键设计**：列表页/详情页的数据来自 PG，**正文除外**。
+**关键设计**：列表页/详情页的数据来自 PG，**正文除外**。  
 列表查询永远不碰 284KB 的正文，这是长文档场景的核心要求。
 
 ---
 
 ## 3. 数据库选型：PostgreSQL
 
-| 维度 | 评价 |
-|---|---|
-| 与 Express 契合 | ✅Node.js 生态最成熟的 PG 驱动（`pg` + Prisma） |
-| JSONB | ✅ frontmatter 里塞任何自定义字段，无需改表结构 |
-| 全文检索 | ✅ `tsvector` + GIN 索引，中文可用 `pg_jieba` 或分词表|
-| Openship 支持 | ✅ catalog 里 `postgres` 一键安装，走私网连接 |
-| 分类查询 | ✅ 外键 + 索引，比 SQLite 的字符串匹配快一个量级 |
+| 维度           | 评价                                         |
+| ------------ | ------------------------------------------ |
+| 与 Express 契合 | ✅Node.js 生态最成熟的 PG 驱动（`pg` + Prisma）       |
+| JSONB        | ✅ frontmatter 里塞任何自定义字段，无需改表结构             |
+| 全文检索         | ✅ `tsvector` + GIN 索引，中文可用 `pg_jieba` 或分词表 |
+| Openship 支持  | ✅ catalog 里 `postgres` 一键安装，走私网连接          |
+| 分类查询         | ✅ 外键 + 索引，比 SQLite 的字符串匹配快一个量级             |
 
 SQLite 的致命问题：并发写锁 + **Openship Cloud 无持久卷**，重启即丢库。
 
@@ -135,8 +136,9 @@ covers/<YYYY>/<MM>/<uuid>.webp       封面图
 
 **含**。R2 里的对象是**完整可用的 markdown 文件**，可直接下载、可用任意编辑器打开。
 
-frontmatter 同时也冗余存一份在 PG 里（`frontmatter` JSONB 列）。
+frontmatter 同时也冗余存一份在 PG 里（`frontmatter` JSONB 列）。  
 这是**有意为之的冗余**，用于：
+
 - 列表页/搜索只用 PG，不回源R2（性能）
 - 改分类、改标题这类「只动元数据」的操作不用重写对象
 - 以 PG 为准，避免两边不一致
@@ -194,30 +196,25 @@ CREATE TABLE post_tags (
 CREATE INDEX idx_post_tags_tag ON post_tags(tag_id);
 
 -- ============ 文章 ============
--- ⚠️ 列名与 frontmatter 字段的映射见下方注释，两者刻意不完全同名
 CREATE TABLE posts (
   id            SERIAL PRIMARY KEY,
-  slug          VARCHAR(160) NOT NULL UNIQUE,   -- URL 标识，由 title 自动 slugify
+  slug          VARCHAR(160) NOT NULL UNIQUE,   -- URL 标识，如 "nextjs-16-guide"
 
   -- frontmatter 冗余字段（用于列表/筛选，避免回源 R2）
-  title         VARCHAR(255) NOT NULL,-- fm.title
-  summary       VARCHAR(500),                   -- fm.summary（可空）
+  title         VARCHAR(255) NOT NULL,
+  summary       VARCHAR(500),                   -- 摘要，列表页展示
   category_id   INTEGER      REFERENCES categories(id) ON DELETE SET NULL,
-                                       -- fm.category（存 slug，此处存解析后的外键）
 
   -- 文档形态区分（用户明确要求长文+短文混合）
   content_type  VARCHAR(16)  NOT NULL DEFAULT 'post'
                 CHECK (content_type IN ('post','doc','note')),
-                                     -- fm.contentType：post=常规博客 doc=长文档 note=片段
+                                     -- post=常规博客  doc=长文档(>50KB)  note=片段
 
-  -- fm.draft 用布尔表达，草稿不进入status 的published 态
   status        VARCHAR(16)  NOT NULL DEFAULT 'draft'
                 CHECK (status IN ('draft','published','archived')),
-  draft         BOOLEAN      NOT NULL DEFAULT true,   -- fm.draft
-  is_top        BOOLEAN      NOT NULL DEFAULT false,  -- fm.top（fm 里是 1/0，此处转布尔）
-  copyright     BOOLEAN      NOT NULL DEFAULT true,-- fm.copyright
+  is_top        BOOLEAN      NOT NULL DEFAULT false,  -- 置顶
 
-  -- 封面（当前 frontmatter 未含 cover 字段，保留列以便后续扩展）
+  -- 封面
   cover_key     VARCHAR(512),                   -- R2 对象 key，如 covers/2026/10/xxx.webp
   cover_url     TEXT,                           -- 冗余完整 URL（CDN 域名拼好）
 
@@ -237,10 +234,9 @@ CREATE TABLE posts (
   view_count    INTEGER      NOT NULL DEFAULT 0,
   word_count    INTEGER      NOT NULL DEFAULT 0,
 
-  -- fm.create / fm.update 为纯日期 YYYY-MM-DD，落库前补成零点整点
-  published_at  TIMESTAMPTZ,                    -- 首次上线时间（发布时写入）
-  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),  -- 库内部时间，非 fm.create
-  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),  -- 库内部时间，非 fm.update
+  published_at  TIMESTAMPTZ,                    -- 首次发布时间
+  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
   CONSTRAINT posts_published_at_check
     CHECK (status <> 'published' OR published_at IS NOT NULL)
@@ -337,22 +333,23 @@ CREATE TRIGGER trg_post_count
   FOR EACH ROW EXECUTE FUNCTION sync_post_count();
 ```
 
+
 ### 5.3 关键设计说明
 
-**为什么 `frontmatter` 用 JSONB 而不是拆成几十个列？**
-博客 frontmatter 字段会不断演进（加 `series`、`draft`、`canonical_url`…）。
+**为什么 `frontmatter` 用 JSONB 而不是拆成几十个列？**  
+博客 frontmatter 字段会不断演进（加 `series`、`draft`、`canonical_url`…）。  
 JSONB 让新增字段零迁移，同时 `jsonb_path_ops` GIN 索引保证仍可查询。
 
-**为什么 `published_at` 与 `created_at` 分离？**
-草稿期 `created_at` 记录建档时间，`published_at` 记录首次上线时间。
+**为什么 `published_at` 与 `created_at` 分离？**  
+草稿期 `created_at` 记录建档时间，`published_at` 记录首次上线时间。  
 列表页排序用 `published_at`，否则同一批草稿会挤占时间线。
 
-**`content_hash` 干什么？**
-存 R2 对象的 SHA256。每次读取时可选比对，检测「PG 说已更新但 R2 还是旧文件」的不一致。
+**`content_hash` 干什么？**  
+存 R2 对象的 SHA256。每次读取时可选比对，检测「PG 说已更新但 R2 还是旧文件」的不一致。  
 配合定时任务可以自动修复。
 
-**为什么 `search_text` 冗余存正文纯文本？**
-PG 的 `tsvector` 中文分词需要预处理，去掉 markdown 语法后的纯文本才能正确切词。
+**为什么 `search_text` 冗余存正文纯文本？**  
+PG 的 `tsvector` 中文分词需要预处理，去掉 markdown 语法后的纯文本才能正确切词。  
 代价是磁盘翻倍（284KB 文档 →约 250KB 纯文本），但换来原生全文检索能力。
 
 ---
@@ -361,50 +358,27 @@ PG 的 `tsvector` 中文分词需要预处理，去掉 markdown 语法后的纯�
 
 ### 6.1 frontmatter schema
 
-**以 `md/template.md` 为唯一权威约定**（用户 2026-10-08 确定）。完整字段：
-
 ```yaml
 ---
 title: Next.js 16 学习文档
-create: 2026-10-04                # 纯日期 YYYY-MM-DD
-update: 2026-10-07                # 纯日期 YYYY-MM-DD
-category: node                # 对应 categories.slug
-tags: []                            # 数组，可空
+slug: nextjs-16-guide
+category: nextjs# 对应 categories.slug
+tags: [nextjs, react, typescript]
 summary: 基于官方中文文档整理的 Next.js 16 完整学习资料
-top: 1                             # 1=置顶，0 或空=不置顶
-copyright: true                    # 是否保留版权声明
-draft: false                       # true=草稿，不对外展示
-contentType: doc                   # post | doc | note
+cover: covers/2026/10/nextjs-16.webp
+date: 2026-10-08T12:00:00Z
+updated: 2026-10-08T12:00:00Z
+contentType: doc                     # post | doc | note
+draft: false
+top: false
+series: Next.js 16 专题               # 可选：系列归属
+seriesOrder: 1# 可选：系列内顺序
+canonicalUrl: https://nextjs.org/docs# 可选：转载来源
 ---
 ```
 
-**字段类型约定（后端 Zod 校验依据）**：
-
-| 字段 | YAML 类型 | 空值写法 | Prisma 类型 | 说明 |
-|---|---|---|---|---|
-| `title` | string | 留空 | `String` | 后端必填校验 |
-| `create` | string | 留空 | `DateTime?` | 纯日期 `YYYY-MM-DD`，后端转 `Date` |
-| `update` | string | 留空 | `DateTime?` | 同上 |
-| `category` | string | 留空 | 外键 | slug，查 `categories.slug` |
-| `tags` | array | `[]` | 关联表 | 空数组合法 |
-| `summary` | null | 留空 | `String?` | 空值→`null` |
-| `top` | **number** | 留空 | `Boolean` | ⚠️ 见下方说明 |
-| `copyright` | boolean | `true`/`false` | `Boolean` | |
-| `draft` | boolean | `true`/`false` | `Boolean` | |
-| `contentType` | string | 留空 | `String` | `post`/`doc`/`note` |
-
-⚠️ **`top` 用数字而非布尔**（用户约定 `top: 1`）：
-YAML 会把 `1` 解析成 number，而后端/数据库用布尔。转换规则：
-- 解析时：`true` = `1` 或 `'1'` 或 `true`
-- 序列化时：`true` → `1`，`false` → `0`（不是 `false`，保持与用户书写习惯一致）
-
-⚠️ **纯日期 vs ISO 时间戳**：
-`create`/`update` 用 `YYYY-MM-DD` 纯日期（用户约定），不是完整 ISO。
-Prisma 侧为 `DateTime?`，写入前由后端补成 `YYYY-MM-DDT00:00:00Z`，
-避免 `new Date('2026-10-04')` 在部分运行时被当本地时区解析。
-
-> `category` 用 **slug 字符串**而非数字 ID —— 让人手写 frontmatter 时可读、可迁移，
-> 后端写入时负责把 slug 解析成 `posts.category_id`，slug 不存在时自动创建分类。
+> `category` 用 **slug 字符串**而非数字 ID —— 让人手写 frontmatter 时可读、可迁移，  
+> 后端写入时负责把 slug 解析成 `posts.category_id`。
 
 ### 6.2 编辑保存流程
 
@@ -421,12 +395,13 @@ POST/PUT /api/posts/:id
 ⑥ 返回新版本号
 ```
 
-★ 对 284KB 的长文档，**历史版本不是可选项而是必需品**——
+★ 对 284KB 的长文档，**历史版本不是可选项而是必需品**——  
 一次误操作整篇就没了，且 md 不在 git 里无法 `git checkout` 找回。
 
 ### 6.3 导入现有 md
 
 你现在有 `md/nextjs.md`（284KB，**无 frontmatter**）。导入脚本需要：
+
 1. 检测缺失的 frontmatter 并补上（标题从 `# Next.js 16 学习文档` 提取）
 2. 按 284KB 体积判定 `contentType: 'doc'`
 3. 推断分类为 `nextjs`
@@ -484,6 +459,7 @@ POST   /api/auth/login                登录
 ```
 
 **R2 特定注意点**：
+
 - Region 必须写 `auto`，不是 `us-east-1`
 - Endpoint **不要**带 bucket 名，也不要用自定义域名
 - `forcePathStyle: true`（R2 的 path-style 用`endpoint/bucket/key`）
@@ -493,18 +469,18 @@ POST   /api/auth/login                登录
 
 ## 9. 实施顺序建议
 
-| 阶段 | 内容 | 产出 |
-|---|---|---|
-| 1 | 建PG（Openship catalog）+ 装 Prisma 7 | `schema.prisma`、`prisma.config.ts` |
-| 2 | 写 `schema.prisma` 模型，`prisma migrate dev` 生成迁移，再补手写 SQL | 迁移文件 + 触发器 |
-| 3 | 接R2，写 Storage 抽象层 | `storage/` 模块，两实现（local / R2）|
-| 4 | 文章 CRUD API + frontmatter 解析 | `/api/posts/*` |
-| 5 | 导入脚本，把 `md/nextjs.md` 灌进去 | 带frontmatter 的 md |
-| 6 | 前端管理页编辑器（CodeMirror/Milkdown） | `/admin/posts` |
-| 7 | 分类管理页 | `/admin/categories` |
+| 阶段 | 内容                                                      | 产出                                 |
+| -- | ------------------------------------------------------- | ---------------------------------- |
+| 1  | 建PG（Openship catalog）+ 装 Prisma 7                       | `schema.prisma`、`prisma.config.ts` |
+| 2  | 写 `schema.prisma` 模型，`prisma migrate dev` 生成迁移，再补手写 SQL | 迁移文件 + 触发器                         |
+| 3  | 接R2，写 Storage 抽象层                                       | `storage/` 模块，两实现（local / R2）      |
+| 4  | 文章 CRUD API + frontmatter 解析                            | `/api/posts/*`                     |
+| 5  | 导入脚本，把 `md/nextjs.md` 灌进去                               | 带frontmatter 的 md                  |
+| 6  | 前端管理页编辑器（CodeMirror/Milkdown）                           | `/admin/posts`                     |
+| 7  | 分类管理页                                                   | `/admin/categories`                |
 
-**Storage 抽象层建议**：本地开发用 `./storage/md/` 目录（免配R2），
-生产用 R2，通过环境变量 `STORAGE_DRIVER=local\|s3` 切换。
+**Storage 抽象层建议**：本地开发用 `./storage/md/` 目录（免配R2），  
+生产用 R2，通过环境变量 `STORAGE_DRIVER=local\|s3` 切换。  
 同一份代码两处都能跑，CI 里也不用mock。
 
 ---
@@ -517,12 +493,12 @@ POST   /api/auth/login                登录
 
 Prisma Migrate 只做**模型 → 表结构**的同步，无法表达以下三类 PostgreSQL 专有特性：
 
-| DDL 里的内容 | Prisma Migrate 能否管理 |
-|---|---|
-| 表、列、外键、唯一约束 | ✅ 能 |
-| `post_count` / `updated_at` 的 PL/pgSQL **触发器** | ❌ 不能 |
-| `search_tsv` **TSVECTOR 列 + GIN 索引** | ❌ 不能（表达式索引不支持）|
-| `jsonb_path_ops` GIN 索引 | ❌ 不能（索引方法不支持）|
+| DDL 里的内容                                       | Prisma Migrate 能否管理 |
+| ---------------------------------------------- | ------------------- |
+| 表、列、外键、唯一约束                                    | ✅ 能                 |
+| `post_count` / `updated_at` 的 PL/pgSQL **触发器** | ❌ 不能                |
+| `search_tsv` **TSVECTOR 列 + GIN 索引**           | ❌ 不能（表达式索引不支持）      |
+| `jsonb_path_ops` GIN 索引                        | ❌ 不能（索引方法不支持）       |
 
 ### 方案 A（推荐）：Prisma 主导 + 手写 SQL 补差
 
@@ -541,10 +517,10 @@ Prisma Migrate 只做**模型 → 表结构**的同步，无法表达以下三�
    - `CREATE FUNCTION` + `CREATE TRIGGER`（自动维护 `post_count`、`updated_at`）
    - `ALTER TABLE posts ADD COLUMN search_tsv TSVECTOR` + `GIN` 索引
    - `jsonb_path_ops` GIN 索引
-4. 触发器里维护 `search_tsv` 时，用 `to_tsvector('simple', NEW.search_text)`
+4. 触发器里维护 `search_tsv` 时，用 `to_tsvector('simple', NEW.search_text)`  
    （中文分词需另配 `pg_jieba`，见第 5.3 节说明）
 
-**优点**：表结构有单一事实源，后续改模型继续走 `migrate dev`，触发器作为补丁稳定存在。
+**优点**：表结构有单一事实源，后续改模型继续走 `migrate dev`，触发器作为补丁稳定存在。  
 **代价**：迁移文件是「生成 + 人工编辑」的混合产物，改模型时要留意别覆盖掉手写部分。
 
 ### 方案 B：SQL 为准，Prisma 只做类型安全查询层
@@ -553,7 +529,7 @@ Prisma Migrate 只做**模型 → 表结构**的同步，无法表达以下三�
 2. `npx prisma db pull` 反向生成 `schema.prisma`
 3. 之后用 Prisma Client 查询，但**不用** `migrate dev`（避免它把手写特性冲掉）
 
-**优点**：完全保留原生 SQL 的表达力，不做混合文件。
+**优点**：完全保留原生 SQL 的表达力，不做混合文件。  
 **代价**：schema.prisma 是生成物不是手写的，改表得先写 SQL 再 pull，容易漂移。
 
 ### `post_count` 的替代实现（可选）
@@ -569,16 +545,49 @@ const counts = await prisma.post.groupBy({
 });
 ```
 
-代价是每次分类栏渲染都多一次查询。**博客数据量小，这个代价完全可以接受**，
-而且省掉了触发器这个「Prisma 管不了」的部分。同理，`updated_at` 可以用
+代价是每次分类栏渲染都多一次查询。**博客数据量小，这个代价完全可以接受**，  
+而且省掉了触发器这个「Prisma 管不了」的部分。同理，`updated_at` 可以用  
 `@updatedAt` 注解让 Prisma 在应用层自动维护，不需要数据库触发器。
 
-> **建议**：先走上面这条「无触发器」路线（`@updatedAt` + `groupBy`），
+> **建议**：先走上面这条「无触发器」路线（`@updatedAt` + `groupBy`），  
 > 把 `tsvector` 全文检索作为唯一必须手写 SQL 的部分。等文章量上千再考虑优化。
 
 ---
 
 ---
+
+## 11. PostgreSQL 部署方式（托管服务 / 本地 compose）
+
+用户 2026-10-08 决策：**backend 保持单镜像（`openship.json` 的 `runtime: docker`），
+postgres 走 Openship 托管 PostgreSQL 服务**，不在 compose 里跑 PG。
+
+理由：Openship Cloud **无持久卷**，compose 里的 `volumes` bind mount 被忽略，
+数据落在 workspace disk，重建即丢（除非开 Backup 标签）。托管 PG 生命周期独立于
+应用容器，数据持久，重建 backend 不影响库。
+
+### 本地开发（`backend/docker-compose.local.yml`）
+
+- 仅本机用，**Openship 不读取**（未放 docker-compose.yml 默认路径，避免 backend 被误判为 stack）
+- 含单个 `postgres` service（用户给定的配置，已修 healthcheck 笔误 `-d myapp` → `-d blog`）
+- 起 PG：`cd backend && docker compose -f docker-compose.local.yml up -d`
+- backend 本地连接串：`postgresql://root:Zhang1234!@localhost:5432/blog`（DATABASE_URL 走 .env 或 shell 变量）
+- 数据目录 `backend/data/postgres/`（`.gitignore` 已忽略）
+
+### Openship 部署（托管 PG）
+
+两种加 PG 的方式（二选一）：
+
+1. **CLI**：`openship db create postgres blog-db` —— 生成托管实例 + 返回内网连接串
+2. **Dashboard**：项目 → Services → Add service → Databases → Postgres 16，
+   service name 填 `db`，Routing 选 **Internal only**（数据库不暴露公网），
+   env 填 `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`
+
+连接：在 backend 项目的 env 里填 `DATABASE_URL`（值 = 托管 PG 内网连接串，建议标记 `secret: true`）。
+同 stack 内服务可通过服务名互访。
+
+> ⚠️ `backend/openship.json` 当前的 `DATABASE_URL` 是占位符
+> `postgresql://REPLACE_WITH_MANAGED_PG_URL`，**部署前必须替换为真实内网地址**，
+> 否则 backend 启动连不上数据库。
 
 ## 12. 待你确认的点
 
